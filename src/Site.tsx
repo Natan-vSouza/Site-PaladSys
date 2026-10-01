@@ -1,4 +1,12 @@
+import Traduzir from "./Traduzir";
 import React, { useEffect, useRef, useState } from "react";
+
+import {
+  ProvedorIdioma,
+  SeletorIdioma,
+  useIdioma,
+} from "./idiomas";
+
 import {
   ArrowUpRight,
   ArrowRight,
@@ -163,6 +171,28 @@ function Blocks({ blocks }: { blocks: Block[] }) {
   return <div className="prose">{elements}</div>;
 }
 function Header({ pathname }: { pathname: string }) {
+  const { t } = useIdioma();
+  const languageContainer = useRef<HTMLDivElement>(null);
+
+useEffect(() => {
+  function closeLanguage(event: PointerEvent) {
+    const target = event.target;
+
+    if (
+      target instanceof Node &&
+      languageContainer.current &&
+      !languageContainer.current.contains(target)
+    ) {
+      setLang(false);
+    }
+  }
+
+  document.addEventListener("pointerdown", closeLanguage);
+
+  return () => {
+    document.removeEventListener("pointerdown", closeLanguage);
+  };
+}, []); 
   const [open, setOpen] = useState(false),
     [lang, setLang] = useState(false);
   const menu = useRef<HTMLButtonElement>(null),
@@ -208,7 +238,7 @@ function Header({ pathname }: { pathname: string }) {
         <nav aria-label="Navegação principal" className="desktop-nav">
           <details className="service-menu" key={pathname}>
             <summary>
-              O que fazemos <ChevronDown size={14} />
+               {t("O que fazemos")} <ChevronDown size={14} />
             </summary>
             <div>
               {services.map((s) => (
@@ -229,46 +259,20 @@ function Header({ pathname }: { pathname: string }) {
             href="/ideas/"
             aria-current={pathname.startsWith("/ideas") ? "page" : undefined}
           >
-            O que pensamos
+           {t("O que pensamos")}
           </Link>
           <Link
             href="/company/"
             aria-current={pathname === "/company/" ? "page" : undefined}
           >
-            Quem somos
+            {t("Quem somos")}
           </Link>
         </nav>
         <div className="nav-actions">
           <Link className="button contact-nav" href="/contact/">
-            Entre em contato <ArrowUpRight size={16} />
+           {t("Entre em contato")} <ArrowUpRight size={16} />
           </Link>
-          <div className="language">
-            <button
-              ref={language}
-              className="icon-button"
-              aria-label="Idioma: Português do Brasil"
-              aria-expanded={lang}
-              aria-controls="language-options"
-              onClick={() => {
-                setLang(!lang);
-                setOpen(false);
-              }}
-            >
-              <Globe size={19} />
-            </button>
-            {lang && (
-              <div className="language-panel" id="language-options">
-                <strong>Idioma do site</strong>
-                <p>
-                  Português (Brasil) <Check size={14} />
-                </p>
-                <span>
-                  Esta versão está disponível em português. Outros idiomas ainda
-                  não têm tradução publicada.
-                </span>
-              </div>
-            )}
-          </div>
+          <SeletorIdioma key={pathname} />
           <button
             ref={menu}
             className="icon-button mobile-toggle"
@@ -401,8 +405,9 @@ function Footer() {
   );
 }
 function TituloDigitado() {
-  const primeiraParte = "Tecnologia";
-  const segundaParte = "como deve ser.";
+const { t } = useIdioma();
+const primeiraParte = t("Tecnologia");
+const segundaParte = t("como deve ser.");
   const total = primeiraParte.length + segundaParte.length;
 
   const [letrasVisiveis, setLetrasVisiveis] = useState(0);
@@ -438,7 +443,7 @@ function TituloDigitado() {
   }
 
   return (
-    <h1 aria-label="Tecnologia como deve ser.">
+    <h1 aria-label={t("Tecnologia como deve ser.")}>
       <span className="titulo-digitado-branco" aria-hidden="true">
         {desenharLetras(primeiraParte, 0)}
       </span>
@@ -532,6 +537,8 @@ function IndicadoresAnimados() {
   );
 }
 function Home() {
+
+  const { idioma, t } = useIdioma();
   return (
     <>
       <div className="home-hero-background">
@@ -547,7 +554,7 @@ function Home() {
         <section className="wrap hero">
           <div>
             <p className="eyebrow">Soberania · Resiliência · Continuidade</p>
-            <TituloDigitado />
+           <TituloDigitado key={idioma} />
             <p className="lead">
               Organizações dependem de tecnologia para operar. Garantimos que ela
               permaneça disponível, protegida e sob controle.
@@ -933,9 +940,10 @@ function Ideas({ url }: { url: URL }) {
             Limpar filtros e busca
           </Link>
         )}
-        <div className="grid three">
+        <div
+          className="grid three article-results"key={url.href}>
           {filtered.slice((page - 1) * 9, page * 9).map((a) => (
-            <ArticleCard key={a.slug} article={a} />
+          <ArticleCard key={a.slug} article={a} />
           ))}
         </div>
         {pages > 1 && (
@@ -1217,10 +1225,11 @@ function NotFound() {
     </section>
   );
 }
-export default function Site() {
+function SiteConteudo() {
   const [url, setUrl] = useState(() => new URL(location.href));
   const main = useRef<HTMLElement>(null);
   const first = useRef(true);
+  const previousWasIdeas = useRef(false);
   go = (href, replace = false) => {
     const next = new URL(href, location.href);
     if (next.href === location.href) return;
@@ -1275,13 +1284,51 @@ export default function Site() {
     document
       .querySelector('meta[property="og:type"]')
       ?.setAttribute("content", article ? "article" : "website");
+       const apenasAtualizouArtigos =
+      previousWasIdeas.current && isIdeas;
+
+    previousWasIdeas.current = isIdeas;
+
     if (first.current) {
       first.current = false;
       return;
     }
-    window.scrollTo({ top: 0, behavior: "instant" });
-    main.current?.focus({ preventScroll: true });
-  }, [url.href, title]);
+
+    // Categorias, busca, ordenação e paginação:
+    // mantém a posição e o foco no controle utilizado.
+    if (apenasAtualizouArtigos) {
+      return;
+    }
+
+    // Ao entrar em outra página, começa no topo.
+    window.scrollTo({
+      top: 0,
+      behavior: "instant",
+    });
+
+    const elemento = main.current;
+
+    if (!elemento) return;
+
+    elemento.focus({ preventScroll: true });
+
+    const reduzirMovimento = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+
+    if (reduzirMovimento) return;
+
+    elemento.classList.remove("pagina-entrando");
+
+// Reinicia a animação a cada troca de página.
+void elemento.offsetWidth;
+
+elemento.classList.add("pagina-entrando");
+
+return () => {
+  elemento.classList.remove("pagina-entrando");
+};
+  }, [url.href, title, isIdeas]);
   let page: React.ReactNode = <NotFound />;
   if (pathname === "/") page = <Home />;
   else if (service) page = <ServicePage service={service} />;
@@ -1303,5 +1350,12 @@ export default function Site() {
       </main>
       <Footer />
     </>
+  );
+}
+export default function Site() {
+  return (
+    <ProvedorIdioma>
+      <SiteConteudo />
+    </ProvedorIdioma>
   );
 }
